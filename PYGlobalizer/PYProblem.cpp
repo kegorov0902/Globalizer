@@ -163,6 +163,8 @@ double PYProblem::CalculateFunctionals(const double* y, int fNumber) {
 
   /// Дополнительная проверка на корректность получения функций
   try {
+    std::cout << "fNumber: " << fNumber << std::endl;
+    std::cout << "functionsOfProblem.size() = " << functionsOfProblem.size() << std::endl;
     temp = functionsOfProblem[fNumber](y);
   }
   catch (const py::error_already_set& e) {
