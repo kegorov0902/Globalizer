@@ -10,10 +10,75 @@ PYProblem::PYProblem(py::object data) {
   this->mLeftBorder = -1.0;
   this->mRightBorder = 1.0;
   this->mNumberOfCriterions = 1;
+
   /// Задание размерности из поля "_dimension" переданного Python-объекта
   if (py::hasattr(data, "_dimension")) {
     SetDimension(data.attr("_dimension").cast<int>());
   }
+
+  /// Задание количества дискретных параметров
+  if (py::hasattr(data, "number_of_discrete_variables")) {
+      this->NumberOfDiscreteVariable = data.attr("number_of_discrete_variables").cast<int>();
+  }
+
+  //if (py::hasattr(data, "discrete_variable_names")) {
+  //    //get here!!! их пока нет
+  //    this->
+  //}
+
+  if (py::hasattr(data, "discrete_variable_values")) {
+      //get here!!!
+        /// Число значений дискретного параметра
+     //this->mNumberOfValues[i] = discrete_variable_values[i].size();
+     //перегрузить 
+     /// Возвращает число дискретных параметров, дискретные параметры всегда последние в векторе y
+     //virtual int GetNumberOfDiscreteVariable() = 0; +
+     /**
+     Возвращает число значений дискретного параметра discreteVariable.
+     GetDimension() возвращает общее число параметров.
+     (GetDimension() - GetNumberOfDiscreteVariable()) - номер начальной дискретной переменной
+     Для не дискретных переменных == -1
+     */
+     //virtual int GetNumberOfValues(int discreteVariable) = 0;+
+     /**
+     Определяет значения дискретного параметра с номером discreteVariable
+     Возвращает код ошибки.
+     \param[out] values массив, в который будут сохранены значения дискретного параметра
+     нулевой элемент это левая граница, поледний элемент это правая граница.
+     */
+     //virtual int GetAllDiscreteValues(int discreteVariable, double* values) = 0;+
+     /**
+     Определяет значения дискретного параметра с номером discreteVariable после номера previousNumber
+     Возвращает код ошибки.
+     \param[in] previousNumber - номер значения после которого возвращается значение
+     -2 - значение по умолчанию, возвращает следующее значение
+     -1 - возвращает после -1, т.е. левую границу области
+     \param[out] value переменная в которую сохраняется значение дискретного параметра
+     */
+     //virtual int GetNextDiscreteValues(int* mCurrentDiscreteValueIndex, double& value, int discreteVariable, int previousNumber = -2) = 0;+
+     /// Проверяет является ли value допустимым значением для параметра с номером discreteVariable
+     //virtual bool IsPermissibleValue(double value, int discreteVariable) = 0;+
+     
+      py::list discrete_vals = data.attr("discrete_variable_values");
+
+      for (int i = 0; i < discrete_vals.size(); i++) {
+          py::list val = discrete_vals[i];
+
+          //std::vector<std::string> temp;
+          for (int j = 0; j < val.size(); j++) {
+              std::string value = val[j].cast<std::string>();
+              discreteValues.push_back(value);
+          }
+      }
+
+      std::cout << "DEBUG: discrete variable values: " << std::endl;
+      for (int i = 0; i < discreteValues.size(); i++) {
+          std::cout << discreteValues[i] << std::endl;
+      }
+
+      std::cout << std::endl;
+  }
+
   /// Задание нижней границы из поля "_lower_bounds" переданного Python-объекта
   if (py::hasattr(data, "_lower_bounds")) {
     py::list lowerList = data.attr("_lower_bounds");
@@ -58,9 +123,9 @@ PYProblem::PYProblem(py::object data) {
     isSetOptimum = false;
   }
 
-  /*if (py::hasattr(data, "_num_crit")) {
+  if (py::hasattr(data, "_num_crit")) {
     this->mNumberOfCriterions = data.attr("_num_crit").cast<int>();
-  }*/
+  }
 
   this->mNumberOfConstraints = functionsOfProblem.size() - this->mNumberOfCriterions;
   std::cout << "Number of constraints: " << this->mNumberOfConstraints << std::endl;
@@ -89,6 +154,8 @@ void PYProblem::GetBounds(double* lower, double* upper) {
 
 /// Реализация метода, вычисляющего значение функции y из вектора функций с номером fNumber
 double PYProblem::CalculateFunctionals(const double* y, int fNumber) {
+  py::gil_scoped_acquire gil;
+  std::cout << "GIL aquaried, CalculateFunctionals() started" << std::endl;
   if (fNumber >= functionsOfProblem.size())
     throw EXCEPTION("Error function number");
 
@@ -112,5 +179,93 @@ double PYProblem::CalculateFunctionals(const double* y, int fNumber) {
     throw;
   }
 
+  std::cout << "CalculateFunctionals() finished" << std::endl;
+
   return temp;
+}
+
+int PYProblem::GetNumberOfDiscreteVariable() {
+    return NumberOfDiscreteVariable;
+}
+
+int PYProblem::GetNumberOfValues(int discreteVariable) {
+    //взято из Problem.h 357!!!
+    if ((discreteVariable > GetDimension()) ||
+        (discreteVariable < (GetDimension() - GetNumberOfDiscreteVariable())))
+        return -1;
+    if (mNumberOfValues == 0)
+        return -1;
+    return mNumberOfValues[discreteVariable - (GetDimension() - GetNumberOfDiscreteVariable())];
+}
+
+int PYProblem::GetAllDiscreteValues(int discreteVariable, double* values) {
+    if ((discreteVariable > GetDimension()) ||
+        (discreteVariable < (GetDimension() - GetNumberOfDiscreteVariable())))
+        return IIntegerProgrammingProblem::ERROR_DISCRETE_VALUE;
+    int* mCurrentDiscreteValueIndex = 0;
+    ClearCurrentDiscreteValueIndex(&mCurrentDiscreteValueIndex);
+
+    // сбрасываем значение индекса текущего значения и задаем левую границу
+    GetNextDiscreteValues(mCurrentDiscreteValueIndex, values[0], discreteVariable, -1);
+    int numVal = GetNumberOfValues(discreteVariable);
+    // определяем все остальные значения
+    for (int i = 1; i < numVal; i++)
+    {
+        GetNextDiscreteValues(mCurrentDiscreteValueIndex, values[i], discreteVariable);
+    }
+    return IProblem::OK;
+}
+
+int PYProblem::GetNextDiscreteValues(int* mCurrentDiscreteValueIndex, double& value, int discreteVariable, int previousNumber) {
+    if ((discreteVariable > GetDimension()) ||
+        (discreteVariable < (GetDimension() - GetNumberOfDiscreteVariable())) ||
+        (mCurrentDiscreteValueIndex == 0) ||
+        (mNumberOfValues == 0))
+        return IIntegerProgrammingProblem::ERROR_DISCRETE_VALUE;
+    // если -1 то сбрасываем значение текущего номера
+    if (previousNumber == -1)
+    {
+        mCurrentDiscreteValueIndex[discreteVariable - GetNumberOfDiscreteVariable()] = 0;
+        value = mLeftBorder;
+        return IProblem::OK;
+    }
+    else if (previousNumber == -2)
+    {
+        double d = (mRightBorder - mLeftBorder) /
+            (mNumberOfValues[discreteVariable - (GetDimension() - GetNumberOfDiscreteVariable())] - 1);
+        mCurrentDiscreteValueIndex[discreteVariable - GetNumberOfDiscreteVariable()]++;
+        value = mLeftBorder + d *
+            mCurrentDiscreteValueIndex[discreteVariable - GetNumberOfDiscreteVariable()];
+        return IProblem::OK;
+    }
+    else
+    {
+        double d = (mRightBorder - mLeftBorder) /
+            (mNumberOfValues[discreteVariable - (GetDimension() - GetNumberOfDiscreteVariable())] - 1);
+        mCurrentDiscreteValueIndex[discreteVariable - GetNumberOfDiscreteVariable()] =
+            previousNumber;
+        mCurrentDiscreteValueIndex[discreteVariable - GetNumberOfDiscreteVariable()]++;
+        value = mLeftBorder + d * mCurrentDiscreteValueIndex[discreteVariable -
+            GetNumberOfDiscreteVariable()];
+        return IProblem::OK;
+    }
+}
+
+bool PYProblem::IsPermissibleValue(double value, int discreteVariable) {
+    if ((discreteVariable > GetDimension()) ||
+        (discreteVariable < (GetDimension() - GetNumberOfDiscreteVariable())) ||
+        (mNumberOfValues == 0))
+        return false;
+    double d = (mRightBorder - mLeftBorder) /
+        (mNumberOfValues[discreteVariable - (GetDimension() - GetNumberOfDiscreteVariable())] - 1);
+    double v = 0;
+    for (int i = 0; i < mNumberOfValues[discreteVariable - (GetDimension() - GetNumberOfDiscreteVariable())]; i++)
+    {
+        v = mLeftBorder + d * i;
+        if (fabs(v - value) < AccuracyDouble)
+        {
+            return true;
+        }
+    }
+    return false;
 }

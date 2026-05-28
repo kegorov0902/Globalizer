@@ -1,8 +1,30 @@
+import numpy as np
+from trial import Point
+from trial import FunctionValue
+from problem import Problem
+from sklearn.svm import SVC
+from sklearn.model_selection import cross_val_score
+from typing import Dict
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+
+from examples.Machine_learning.SVC._2D.Problems import SVC_2d
+from sklearn.datasets import load_breast_cancer
+from sklearn.utils import shuffle
+
 import importlib.util
 import sys
 import os
 from pathlib import Path
 from math import cos, pi
+
+from iOpt.output_system.listeners.console_outputers import ConsoleOutputListener
+from iOpt.output_system.listeners.static_painters import StaticDiscreteListener
+from sklearn.datasets import load_breast_cancer
+from iOpt.solver import Solver
+from iOpt.solver_parametrs import SolverParameters
+from examples.Machine_learning.SVC._3D.Problem import SVC_3D
+from sklearn.utils import shuffle
 
 # Определяем путь к текущему скрипту (он в examples)
 current_dir = Path(__file__).parent.absolute()
@@ -53,59 +75,25 @@ import PYGlobalizer
 
 print(f"PYProblem загружен из: {pyproblem_path}")
 print(f"PYGlobalizer загружен из: {module_dir}")
- 
-"""
-
-Создание нескольких функций для тестирования решателя
 
 """
-
-mDimension = 3
-k = 1.75
- 
-def f1(x):
-    sum = 0.0
-    for j in range(mDimension):
-        sum += x[j] * x[j]
-    return k + sum - 1.2**mDimension
- 
-def f2(x):
-    sum = 0.0
-    for j in range(mDimension):
-        sum += x[j] * x[j]
-
-    sum += -(1.25**mDimension)
-
-    return k + sum
- 
-def f3(x):
-    sum = 0.0
-    k = 1.36
-
-    for j in range(mDimension):
-
-        sum += x[j] * x[j] - 10. * cos(2.0 * pi * x[j]) + 10.0
-
-    return k+ sum
- 
+Call problem here
 """
 
-def f4(x, y):
+def load_breast_cancer_data():
+    dataset = load_breast_cancer()
+    x_raw, y_raw = dataset['data'], dataset['target']
+    inputs, outputs = shuffle(x_raw, y_raw ^ 1, random_state=42)
+    return inputs, outputs
 
-    return x + y
- 
-def f5(x, y):
+if __name__ == "__main__":
+    x, y = load_breast_cancer_data()
+    regularization_value_bound = {'low': 1, 'up': 10}
+    kernel_coefficient_bound = {'low': -9, 'up': -6.7}
+    kernel_type = {'kernel': ['rbf', 'sigmoid', 'poly']}
+    p = SVC_3D.SVC_3D(x, y, regularization_value_bound, kernel_coefficient_bound, kernel_type)
+    
+    problem = PYProblem(dimension=3)
+    problem.copy_from_problem(p)
 
-    return x - 4*y
-
-"""
- 
-test_problem = PYProblem(dimension=mDimension)
-test_problem.add_function(f1)
-test_problem.add_function(f2)
-test_problem.add_function(f3)
-# test_problem.add_function(f4)
-# test_problem.add_function(f5) 
-test_problem.set_bounds(lower=[-1.8, -1.0, -0.5], upper=[2.2]*3)
-PYGlobalizer.solve(test_problem)
- 
+    PYGlobalizer.solve(problem)

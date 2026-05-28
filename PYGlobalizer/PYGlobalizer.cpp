@@ -29,26 +29,47 @@
 
 #include "Globalizer.h"
 #include "PYProblem.h"
+#include "IOptProblem.h"
 
 namespace py = pybind11;
 
 /// Функция, реализующая приём задачи из Python и вызов решателя Globalizer
-void solve(py::object& data) 
+void solve(py::object& data)
 {
   /// Инициализация Globalizer
   GlobalizerInitialization(0, nullptr, false, true);
-  /// Создание экземпляра класса задач, получаемых из Python
-  IProblem* problem = new PYProblem(data);
+
+  IProblem* problem;
+
+  py::object PYProblem_class = py::module_::import("PYProblem").attr("PYProblem");
+  //py::object IOptProblem_class = py::module_::import("problem").attr("Problem");
+
+  if (py::isinstance(data, PYProblem_class)) {
+      /// Создание экземпляра класса задач, получаемых из Python
+      problem = new PYProblem(data);
+      std::cout << "PYProblem created" << std::endl;
+  }
+
+ /* if (py::isinstance(data, IOptProblem_class)) {
+      /// Создание экземпляра класса задач, получаемых из Python
+      problem = new IOptProblem(data);
+      std::cout << "Python IOpt problem created" << std::endl;
+  }*/
 
   /// инициализация задачи
   problem->Initialize();
+  std::cout << "Problem itialized" << std::endl;
   /// Установка размерности в параметры
   parameters.Dimension = problem->GetDimension();
+  std::cout << "Dimension: " << parameters.Dimension << std::endl;
   /// Создание решателя
   Solver solver(problem);
+  std::cout << "Solver created" << std::endl;
   /// Запуск решателя с проверкой
   if (solver.Solve() != SYSTEM_OK)
     throw EXCEPTION("Error: solver.Solve crash!!!");
+
+  std::cout << "Solver finished" << std::endl;
 }
 
 /// Добавление модуля
