@@ -1,4 +1,5 @@
 ﻿#include "PYProblem.h"
+#include <chrono>
 
 /// Реализация конструктора
 PYProblem::PYProblem(py::object data) {
@@ -165,7 +166,11 @@ double PYProblem::CalculateFunctionals(const double* y, int fNumber) {
   try {
     std::cout << "fNumber: " << fNumber << std::endl;
     std::cout << "functionsOfProblem.size() = " << functionsOfProblem.size() << std::endl;
+    auto start = std::chrono::steady_clock::now();
     temp = functionsOfProblem[fNumber](y);
+    auto finish = std::chrono::steady_clock::now();
+    auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
+    std::cout << "Time took: " << elapsedTime.count() << std::endl;
   }
   catch (const py::error_already_set& e) {
     std::cerr << "PYTHON ERROR: " << e.what() << std::endl;
@@ -182,6 +187,7 @@ double PYProblem::CalculateFunctionals(const double* y, int fNumber) {
   }
 
   std::cout << "CalculateFunctionals() finished" << std::endl;
+  std::cout << "Result = " << temp << std::endl;
 
   return temp;
 }
