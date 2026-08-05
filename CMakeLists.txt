@@ -26,6 +26,8 @@ option(GLOBALIZER_ONE_MPI_PROCESS_PER_NODE "ONE PROCESS PER NODE" OFF)
 option(GLOBALIZER_PYTHON "Set ON to use Python" OFF)
 option(PYGlobalizer "Set ON to use Python interface" OFF)
 
+option(GLOBALIZER_USE_ASAN "Set ON to build with AddressSanitizer (diagnostics)" OFF)
+
 set(GLOBALIZER_DEBUG_SUFFIX   d)
 
 set(GLOBALIZER_EXECUTABLE_NAME                 ${GLOBALIZER_PROJECT_NAME}${GLOBALIZER_EXECUTABLE_SUFFIX})
@@ -102,6 +104,21 @@ else()
   set(OpenMP_CXX_FLAGS "-fopenmp")
 endif()
 
+if (GLOBALIZER_USE_ASAN)
+  message(STATUS "AddressSanitizer ENABLED")
+  if (IS_MICROSOFT_COMPILER)
+    # MSVC / clang-cl
+    add_compile_options(/fsanitize=address /Zi)
+    # ВАЖНО: с ASan под MSVC несовместим Edit&Continue и инкрементальная линковка
+    string(REPLACE "/RTC1" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+    string(REPLACE "/INCREMENTAL" "/INCREMENTAL:NO" CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
+  else()
+    # GCC / Clang
+    add_compile_options(-fsanitize=address -fno-omit-frame-pointer -g)
+    add_link_options(-fsanitize=address)
+  endif()
+endif()
+
 
 if(NOT (CMAKE_BUILD_TYPE IN_LIST CMAKE_CONFIGURATION_TYPES))
   set(CMAKE_BUILD_TYPE "Release" CACHE STRING "build type" FORCE)
@@ -129,7 +146,6 @@ endif()
 if (${GLOBALIZER_ONE_MPI_PROCESS_PER_NODE})
 	add_definitions(-DONE_MPI_PROCESS_PER_NODE)
 endif()
-
 
 #add MPFR_GMP_MPIR
 if (${GLOBALIZER_USE_MP})
@@ -200,7 +216,7 @@ if (GLOBALIZER_USE_CUDA)
   find_package(CUDA REQUIRED)
 endif()
 
-
+set(GLOBALIZER_BENCHMARKS_Interface "")
 #add problems
 if(${GLOBALIZER_BUILD_PROBLEMS})
   add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/Problems)
@@ -291,6 +307,20 @@ endif()
 
 add_library(${GLOBALIZER_LIB_NAME} STATIC ${ALL_SRC_FILES} ${GCGEN_SOURCES} ${GCGEN_HEADERS})
 
+
+target_include_directories(${GLOBALIZER_LIB_NAME} PUBLIC
+    ${GLOBALIZER_COMMON_SRC_DIR}/include
+    ${GLOBALIZER_PARAMETERS_DIR}/include
+    ${GLOBALIZER_evolvent_DIR}/include
+    ${GLOBALIZER_extended_DIR}/include
+    ${GLOBALIZER_output_system_DIR}/include
+    ${GLOBALIZER_problem_DIR}/include
+    ${GLOBALIZER_method_DIR}/include
+    ${GLOBALIZER_calculation_DIR}/include
+    ${GLOBALIZER_local_method_DIR}/include
+	${GLOBALIZER_BENCHMARKS_Interface}/include/
+)
+
 file(GLOB main_list "${GLOBALIZER_EXAMPLES_SRC_DIR}/*.cpp")
 
 
@@ -359,6 +389,7 @@ endif()
 
 												  
 include_directories(${Python_INCLUDE_DIRS} ${Python_NumPy_INCLUDE_DIRS})
+
 
 	
 if (${IS_CLANG_COMPILER})	
